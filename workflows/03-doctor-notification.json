@@ -1,0 +1,102 @@
+{
+  "id": "03-doctor-notification",
+  "name": "Doctor Notification",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Postgres Trigger",
+      "type": "n8n-nodes-base.postgresTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "event": "insert",
+        "schema": "public",
+        "table": "bookings"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_ACCOUNT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "Get Details",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT b.patient_name, b.patient_phone, b.booking_datetime, s.service_name, d.name as doctor_name FROM bookings b JOIN services s ON b.service_id = s.id JOIN doctors d ON b.doctor_id = d.id WHERE b.id = $1;",
+        "additionalFields": {
+          "queryParams": "={{ $json.id }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_ACCOUNT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Telegram Admin",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "7952743640",
+        "text": "={{ '🚨 *BOOKING BARU MASUK!* 🚨\\n\\n👤 *Pasien:* ' + $json.patient_name + '\\n📱 *No. HP:* ' + $json.patient_phone + '\\n💆‍♀️ *Layanan:* ' + $json.service_name + '\\n👨‍⚕️ *Dokter:* ' + $json.doctor_name + '\\n📅 *Jadwal:* ' + $json.booking_datetime + '\\n\\n_Harap segera di-follow up ya Dok!_' }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_API",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Postgres Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Details": {
+      "main": [
+        [
+          {
+            "node": "Telegram Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

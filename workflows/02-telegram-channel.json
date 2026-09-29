@@ -1,0 +1,135 @@
+{
+  "id": "02-telegram-channel",
+  "name": "Telegram Channel",
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "credentials": {
+          "telegramApi": {
+            "id": "TELEGRAM_API",
+            "name": "Telegram Bot API"
+          }
+        }
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Format Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "sender_id",
+              "value": "={{ $json.message.from.id }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "message",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "channel",
+              "value": "telegram",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Call Core Engine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        400,
+        0
+      ],
+      "parameters": {
+        "workflowId": "01-core-ai-engine",
+        "mode": "runOnceWithAllItems"
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Telegram Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $('Format Payload').item.json.sender_id }}",
+        "text": "={{ JSON.parse($json.output.replace(/```(json)?\\n?|```/g, '')).reply_text }}",
+        "credentials": {
+          "telegramApi": {
+            "id": "TELEGRAM_API",
+            "name": "Telegram Bot API"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Payload": {
+      "main": [
+        [
+          {
+            "node": "Call Core Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Core Engine": {
+      "main": [
+        [
+          {
+            "node": "Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

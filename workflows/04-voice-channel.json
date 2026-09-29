@@ -1,0 +1,332 @@
+{
+  "id": "04-voice-channel",
+  "name": "Voice Channel (Twilio)",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Incoming Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "path": "voice/incoming",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "2",
+      "name": "Respond to Incoming",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        200,
+        0
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say language=\"id-ID\" voice=\"Google.id-ID-Chirp3-HD-Kore\">Halo, terima kasih telah menghubungi Klinik Glow Aesthetic dan Smile Dental. Ada yang bisa saya bantu?</Say>\n  <Gather input=\"speech\" language=\"id-ID\" action=\"/webhook/voice/response\" timeout=\"5\" />\n</Response>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Voice Response Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        250
+      ],
+      "parameters": {
+        "path": "voice/response",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "4",
+      "name": "Check Speech",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        200,
+        250
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.SpeechResult }}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5",
+      "name": "Respond Timeout",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        450,
+        150
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say language=\"id-ID\" voice=\"Google.id-ID-Chirp3-HD-Kore\">Apakah masih ada? Silakan lanjutkan bicara, atau saya akhiri panggilan.</Say>\n  <Gather input=\"speech\" language=\"id-ID\" action=\"/webhook/voice/response\" timeout=\"5\" />\n</Response>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "6",
+      "name": "Format Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        450,
+        350
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "sender_id",
+              "value": "={{ $json.body.From }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "message",
+              "value": "={{ $json.body.SpeechResult }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "channel",
+              "value": "voice",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7",
+      "name": "Call Core Engine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        650,
+        350
+      ],
+      "parameters": {
+        "workflowId": "01-core-ai-engine",
+        "mode": "runOnceWithAllItems"
+      }
+    },
+    {
+      "id": "8",
+      "name": "Parse AI JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        350
+      ],
+      "parameters": {
+        "jsCode": "const outputStr = $input.first().json.output || \"\";\ntry {\n  const parsed = JSON.parse(outputStr.replace(/```(json)?\\n?|```/g, '').trim());\n  return { json: parsed };\n} catch(e) {\n  return { json: { reply_text: outputStr, conversation_status: \"ongoing\" } };\n}"
+      }
+    },
+    {
+      "id": "9",
+      "name": "Check Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        350
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.conversation_status }}",
+              "value2": "completed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "10",
+      "name": "Respond Hangup",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        250
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<Response>\\n  <Say language=\"id-ID\" voice=\"Google.id-ID-Chirp3-HD-Kore\">' + $json.reply_text + '</Say>\\n  <Hangup/>\\n</Response>' }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "11",
+      "name": "Respond Gather",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        450
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<Response>\\n  <Say language=\"id-ID\" voice=\"Google.id-ID-Chirp3-HD-Kore\">' + $json.reply_text + '</Say>\\n  <Gather input=\"speech\" language=\"id-ID\" action=\"/webhook/voice/response\" timeout=\"5\" />\\n</Response>' }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Incoming Call Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond to Incoming",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice Response Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check Speech",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Speech": {
+      "main": [
+        [
+          {
+            "node": "Respond Timeout",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Payload": {
+      "main": [
+        [
+          {
+            "node": "Call Core Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Core Engine": {
+      "main": [
+        [
+          {
+            "node": "Parse AI JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI JSON": {
+      "main": [
+        [
+          {
+            "node": "Check Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Status": {
+      "main": [
+        [
+          {
+            "node": "Respond Hangup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Gather",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: klinik_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_user}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD:-n8n_password_change_me}
+      # This triggers our script to create multiple databases
+      - POSTGRES_MULTIPLE_DATABASES=${DB_POSTGRESDB_DATABASE:-n8n_db},${KLINIK_DB_DATABASE:-klinik_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_POSTGRESDB_USER:-n8n_user} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: klinik_n8n
+    restart: always
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE:-n8n_db}
+      - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER:-n8n_user}
+      - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD:-n8n_password_change_me}
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-admin_password}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Jakarta}
+      - TZ=${TZ:-Asia/Jakarta}
+      - WEBHOOK_URL=https://decimal-gdp-contractor-does.trycloudflare.com
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/workflows
+      - ./scripts:/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  n8n_data:
